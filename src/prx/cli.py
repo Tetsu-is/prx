@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import os
+import shlex
 import shutil
 from pathlib import Path
 from typing import Annotated
@@ -15,13 +18,14 @@ from prx.config import (
     validate_forwarded_args,
 )
 from prx.diagnostics import collect_checks, command_version
+from prx.models import load_models, models_file
 from prx.runtime import (
     create_runtime_settings,
     resolve_binary,
     run_interactive_child,
     running_proxy,
 )
-from prx.settings import DEFAULT_COPILOT_MODEL, cache_directory
+from prx.settings import DEFAULT_COPILOT_MODEL, cache_directory, state_directory
 
 app = typer.Typer(
     name="prx",
@@ -60,13 +64,67 @@ def version_command() -> None:
 
 @app.command()
 def models() -> None:
-    """Explain model selection and show the configured default."""
-    typer.echo(f"Default: {DEFAULT_COPILOT_MODEL}")
+    """List model aliases configured for the standalone proxy."""
+    try:
+        configured = load_models()
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(2) from exc
+    for alias, provider_model in configured.items():
+        typer.echo(f"{alias} -> github_copilot/{provider_model}")
     typer.echo(
-        "LiteLLM's Copilot provider does not expose authoritative account model discovery. "
-        "Use '/model' in the official Copilot CLI to inspect account availability, then pass "
-        "'--copilot-model MODEL' to 'prx auth' or 'prx codex'."
+        f"\nConfigured in {models_file()}. LiteLLM's Copilot provider does not expose "
+        "authoritative "
+        "account model discovery; verify availability with the official "
+        "Copilot CLI."
     )
+
+
+@app.command()
+def proxy(
+    action: Annotated[
+        str,
+        typer.Argument(help="Use 'setenv' to print exports for a running proxy."),
+    ] = "start",
+    verbose_proxy: Annotated[
+        bool,
+        typer.Option("--verbose-proxy", help="Mirror redacted LiteLLM logs to stderr."),
+    ] = False,
+    shell: Annotated[
+        str,
+        typer.Option("--shell", help="Shell syntax for 'setenv': bash, zsh, or fish."),
+    ] = "bash",
+) -> None:
+    """Start a standalone loopback proxy until interrupted."""
+    if action == "setenv":
+        _print_proxy_environment(shell)
+        return
+    if action != "start":
+        typer.echo(f"Unknown proxy action: {action}", err=True)
+        raise typer.Exit(2)
+    try:
+        configured = load_models()
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(2) from exc
+    default_model = next(iter(configured))
+    settings = create_runtime_settings(default_model, configured)
+    try:
+        with running_proxy(settings, show_logs=verbose_proxy) as running:
+            typer.echo(f"Proxy listening at {settings.base_url}/v1")
+            typer.echo(f"API key: {settings.proxy_key}")
+            typer.echo("\nCopy this into the shell where you run Codex:")
+            typer.echo(f"export PRX_PROXY_KEY={shlex.quote(settings.proxy_key)}")
+            typer.echo(f'# config.toml: base_url = "{settings.base_url}/v1"')
+            typer.echo(f"Models: {', '.join(configured)}")
+            typer.echo("Press Ctrl-C to stop.")
+            try:
+                running.wait()
+            except KeyboardInterrupt:
+                typer.echo("\nStopping proxy...")
+    except RuntimeError as exc:
+        typer.echo(f"Unable to start LiteLLM: {exc}", err=True)
+        raise typer.Exit(1) from exc
 
 
 @app.command()
@@ -164,6 +222,27 @@ def cleanup() -> None:
     removed = remove_owned_runtime_files(cache_directory())
     noun = "directory" if len(removed) == 1 else "directories"
     typer.echo(f"Removed {len(removed)} stale runtime {noun}.")
+
+
+def _print_proxy_environment(shell: str) -> None:
+    if shell not in {"bash", "zsh", "fish"}:
+        raise typer.BadParameter("--shell must be bash, zsh, or fish")
+    path = state_directory() / "proxy-runtime.json"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        pid = int(payload["pid"])
+        port = int(payload["port"])
+        proxy_key = str(payload["proxy_key"])
+        os.kill(pid, 0)
+        if not proxy_key.startswith("sk-prx-"):
+            raise ValueError("invalid proxy key")
+    except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
+        raise typer.BadParameter("No running prx proxy was found") from exc
+    if shell == "fish":
+        typer.echo(f"set -gx PRX_PROXY_KEY {shlex.quote(proxy_key)}")
+    else:
+        typer.echo(f"export PRX_PROXY_KEY={shlex.quote(proxy_key)}")
+    typer.echo(f"# config.toml: base_url = \"http://127.0.0.1:{port}/v1\"")
 
 
 def _remove_runtime_directory(path: Path) -> None:

@@ -24,6 +24,7 @@ from prx.settings import (
     copilot_token_directory,
     make_proxy_key,
     reserve_loopback_port,
+    state_directory,
 )
 
 SECRET_PATTERNS = [
@@ -64,7 +65,7 @@ def litellm_command() -> list[str]:
     return [sys.executable, "-m", "litellm"]
 
 
-def create_runtime_settings(model: str) -> RuntimeSettings:
+def create_runtime_settings(model: str, models: dict[str, str] | None = None) -> RuntimeSettings:
     cache_root = cache_directory()
     runtime_dir = Path(tempfile.mkdtemp(prefix="run-", dir=cache_root))
     runtime_dir.chmod(0o700)
@@ -80,6 +81,8 @@ def create_runtime_settings(model: str) -> RuntimeSettings:
         token_directory=copilot_token_directory(),
         config_path=runtime_dir / "litellm.json",
         log_path=runtime_dir / "proxy.log",
+        models=models or {},
+        runtime_info_path=state_directory() / "proxy-runtime.json",
     )
 
 
@@ -112,6 +115,7 @@ class ProxyProcess:
             bufsize=1,
             start_new_session=True,
         )
+        self._write_runtime_info()
         self._pump_thread = threading.Thread(target=self._pump_logs, daemon=True)
         self._pump_thread.start()
         self._wait_until_ready(timeout)
@@ -175,7 +179,42 @@ class ProxyProcess:
                 os.killpg(process.pid, signal.SIGKILL)
                 process.wait(timeout=2)
         finally:
+            self._remove_runtime_info()
             self._close_log()
+
+    def wait(self) -> int:
+        if self.process is None:
+            raise RuntimeError("LiteLLM has not been started")
+        return self.process.wait()
+
+    def _write_runtime_info(self) -> None:
+        if self.process is None or self.settings.runtime_info_path is None:
+            return
+        path = self.settings.runtime_info_path
+        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "pid": self.process.pid,
+                    "port": self.settings.port,
+                    "proxy_key": self.settings.proxy_key,
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        path.chmod(0o600)
+
+    def _remove_runtime_info(self) -> None:
+        path = self.settings.runtime_info_path
+        if path is None or not path.is_file():
+            return
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, TypeError):
+            return
+        if self.process is not None and payload.get("pid") == self.process.pid:
+            path.unlink(missing_ok=True)
 
     def _close_log(self) -> None:
         if self._pump_thread is not None:

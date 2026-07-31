@@ -4,7 +4,7 @@ import os
 import secrets
 import socket
 import stat
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from platformdirs import user_cache_path, user_state_path
@@ -57,6 +57,8 @@ class RuntimeSettings:
     token_directory: Path
     config_path: Path
     log_path: Path
+    models: dict[str, str] = field(default_factory=dict)
+    runtime_info_path: Path | None = None
 
     @property
     def base_url(self) -> str:

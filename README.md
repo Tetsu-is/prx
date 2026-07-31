@@ -1,8 +1,8 @@
 # prx
 
-`prx` starts a loopback-only LiteLLM Proxy and launches Codex CLI with an
-ephemeral custom model provider. Model requests are routed to LiteLLM's
-`github_copilot` provider.
+`prx` starts a loopback-only LiteLLM Proxy. It can either run as a standalone
+server or launch Codex CLI with an ephemeral custom model provider. Model
+requests are routed to LiteLLM's `github_copilot` provider.
 
 > [!WARNING]
 > This is an experimental, single-user proof of concept. LiteLLM's
@@ -58,6 +58,74 @@ Start Codex:
 uv run prx codex --copilot-model gpt-5.6-luna -- \
   --sandbox workspace-write
 ```
+
+Start only the proxy and keep it running:
+
+```bash
+uv run prx proxy
+```
+
+The proxy reads model aliases from `models.json`, prints its local URL and
+ephemeral API key, and prints a copy-pasteable `export PRX_PROXY_KEY=...`
+command. Paste that command into the shell where Codex runs. It routes the
+requested `model` to the corresponding Copilot model. Add aliases to that file
+before starting the proxy.
+
+Configure Codex to use the standalone proxy in `~/.codex/config.toml`:
+
+```toml
+model = "gpt-5.6-sol"
+model_provider = "prx"
+
+[model_providers.prx]
+name = "prx GitHub Copilot"
+base_url = "http://127.0.0.1:PORT/v1"
+env_key = "PRX_PROXY_KEY"
+wire_api = "responses"
+stream_idle_timeout_ms = 300000
+```
+
+Replace `PORT` with the port printed by `prx proxy`, then paste the printed
+`export PRX_PROXY_KEY=...` command into the shell where you run `codex`.
+Because the standalone proxy currently chooses a new port and API key on each
+start, repeat these two updates after restarting it. The API key is ephemeral
+and the proxy is loopback-only.
+
+To load the API key automatically whenever a new shell starts, add the
+corresponding snippet to your shell startup file.
+
+For zsh (`~/.zshrc`):
+
+```sh
+if command -v prx >/dev/null 2>&1; then
+  eval "$(prx proxy setenv 2>/dev/null)"
+fi
+```
+
+For bash (`~/.bashrc`):
+
+```bash
+if command -v prx >/dev/null 2>&1; then
+  eval "$(prx proxy setenv --shell bash 2>/dev/null)"
+fi
+```
+
+For fish (`~/.config/fish/config.fish`):
+
+```fish
+if type -q prx
+  eval (prx proxy setenv --shell fish 2>/dev/null)
+end
+```
+
+This reads the credentials of an already-running proxy and exports
+`PRX_PROXY_KEY` into the current shell. It does not start the proxy. The
+`base_url` still needs to match the port printed at startup. Bash and zsh use
+`export`; fish uses `set -gx`.
+
+Alternatively, use `prx codex`; it starts the proxy and injects the provider
+configuration automatically, so no standalone-proxy settings are needed in
+`config.toml`.
 
 Everything after `--` is passed to Codex. `--model`, `--profile`, and provider
 configuration overrides are rejected because they could bypass the proxy.

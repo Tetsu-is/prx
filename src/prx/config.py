@@ -9,13 +9,15 @@ from prx.settings import PROVIDER_ID, RuntimeSettings
 
 
 def build_litellm_config(settings: RuntimeSettings) -> dict[str, Any]:
+    models = settings.models or {settings.model: settings.model}
     return {
         "model_list": [
             {
-                "model_name": settings.model,
+                "model_name": alias,
                 "model_info": {"mode": "responses"},
-                "litellm_params": {"model": f"github_copilot/{settings.model}"},
+                "litellm_params": {"model": f"github_copilot/{provider_model}"},
             }
+            for alias, provider_model in models.items()
         ],
         "general_settings": {
             "master_key": f"os.environ/{proxy_key_environment_name()}",

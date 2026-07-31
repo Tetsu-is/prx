@@ -36,6 +36,19 @@ def test_litellm_config_routes_responses_model(tmp_path) -> None:
     assert "sk-prx-secret" not in json.dumps(payload)
 
 
+def test_litellm_config_routes_multiple_aliases(tmp_path) -> None:
+    runtime = settings(tmp_path)
+    runtime = RuntimeSettings(**{**runtime.__dict__, "models": {
+        "fast": "gpt-test",
+        "reasoning": "gpt-reasoning",
+    }})
+
+    deployments = build_litellm_config(runtime)["model_list"]
+
+    assert [deployment["model_name"] for deployment in deployments] == ["fast", "reasoning"]
+    assert deployments[1]["litellm_params"]["model"] == "github_copilot/gpt-reasoning"
+
+
 def test_written_config_is_private_json_yaml(tmp_path) -> None:
     runtime = settings(tmp_path)
     write_litellm_config(runtime)
