@@ -94,6 +94,10 @@ def proxy(
         str,
         typer.Option("--shell", help="Shell syntax for 'setenv': bash, zsh, or fish."),
     ] = "bash",
+    port: Annotated[
+        int,
+        typer.Option("--port", help="Loopback port for the standalone proxy."),
+    ] = 4000,
 ) -> None:
     """Start a standalone loopback proxy until interrupted."""
     if action == "setenv":
@@ -108,7 +112,11 @@ def proxy(
         typer.echo(str(exc), err=True)
         raise typer.Exit(2) from exc
     default_model = next(iter(configured))
-    settings = create_runtime_settings(default_model, configured)
+    try:
+        settings = create_runtime_settings(default_model, configured, port=port)
+    except OSError as exc:
+        typer.echo(f"Unable to reserve proxy port {port}: {exc}", err=True)
+        raise typer.Exit(1) from exc
     try:
         with running_proxy(settings, show_logs=verbose_proxy) as running:
             typer.echo(f"Proxy listening at {settings.base_url}/v1")

@@ -62,21 +62,28 @@ def litellm_command() -> list[str]:
     binary = resolve_binary("litellm", "PRX_LITELLM_BIN")
     if binary:
         return [binary]
+    sibling_binary = Path(sys.executable).with_name("litellm")
+    if sibling_binary.is_file() and os.access(sibling_binary, os.X_OK):
+        return [str(sibling_binary)]
     return [sys.executable, "-m", "litellm"]
 
 
-def create_runtime_settings(model: str, models: dict[str, str] | None = None) -> RuntimeSettings:
+def create_runtime_settings(
+    model: str,
+    models: dict[str, str] | None = None,
+    port: int | None = None,
+) -> RuntimeSettings:
     cache_root = cache_directory()
     runtime_dir = Path(tempfile.mkdtemp(prefix="run-", dir=cache_root))
     runtime_dir.chmod(0o700)
     marker = runtime_dir / ".prx-runtime"
     marker.write_text(json.dumps({"pid": os.getpid()}) + "\n", encoding="utf-8")
     marker.chmod(0o600)
-    reservation, port = reserve_loopback_port()
+    reservation, selected_port = reserve_loopback_port(port)
     reservation.close()
     return RuntimeSettings(
         model=model,
-        port=port,
+        port=selected_port,
         proxy_key=make_proxy_key(),
         token_directory=copilot_token_directory(),
         config_path=runtime_dir / "litellm.json",

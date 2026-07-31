@@ -3,7 +3,13 @@ from __future__ import annotations
 import os
 import sys
 
-from prx.runtime import is_auth_instruction, redact, resolve_binary, run_interactive_child
+from prx.runtime import (
+    is_auth_instruction,
+    litellm_command,
+    redact,
+    resolve_binary,
+    run_interactive_child,
+)
 
 
 def test_redact_common_secrets() -> None:
@@ -31,6 +37,19 @@ def test_device_flow_instruction_is_detected() -> None:
 def test_resolve_binary_honors_override(monkeypatch) -> None:
     monkeypatch.setenv("PRX_TEST_BIN", "/custom/tool")
     assert resolve_binary("ignored", "PRX_TEST_BIN") == "/custom/tool"
+
+
+def test_litellm_command_uses_sibling_tool_binary(monkeypatch, tmp_path) -> None:
+    python = tmp_path / "python"
+    litellm = tmp_path / "litellm"
+    python.write_text("", encoding="utf-8")
+    litellm.write_text("", encoding="utf-8")
+    litellm.chmod(0o700)
+    monkeypatch.setattr("prx.runtime.sys.executable", str(python))
+    monkeypatch.delenv("PRX_LITELLM_BIN", raising=False)
+    monkeypatch.setattr("prx.runtime.shutil.which", lambda *_args: None)
+
+    assert litellm_command() == [str(litellm)]
 
 
 def test_interactive_child_returns_exit_code() -> None:

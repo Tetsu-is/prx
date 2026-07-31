@@ -28,9 +28,30 @@ Codex CLI -> 127.0.0.1 LiteLLM /v1/responses -> GitHub Copilot Chat API
 ## Install
 
 ```bash
+git clone <repository-url>
+cd prx
 uv sync
-uv run prx doctor
+uv tool install --editable .
+uv tool update-shell
+prx doctor
 ```
+
+これで、このリポジトリをクローンした各ユーザーの環境に、このプロジェクトの
+`prx` コマンドがインストールされます。`--editable` を指定しているため、
+リポジトリ内のPythonコードや `models.json` の変更がそのまま反映されます。
+`uv tool update-shell` の後は、新しいターミナルを開くか、表示されたPATH設定を
+現在のシェルに反映してください。
+
+プロジェクトをグローバルコマンドとしてインストールしたくない場合は、代わりに
+プロジェクトディレクトリから次の形式で実行できます。
+
+```bash
+prx doctor
+prx proxy
+```
+
+クローンした場所に依存せず、シェルから常に `prx` として呼び出したい場合は、
+`uv tool install --editable .` を使ってください。
 
 The project pins LiteLLM exactly in `pyproject.toml` and `uv.lock`. Review
 dependency changes before upgrading it.
@@ -44,7 +65,7 @@ discovery.
 Then trigger OAuth device flow with a model available to your account:
 
 ```bash
-uv run prx auth --copilot-model gpt-5.6-luna
+prx auth --copilot-model gpt-5.6-luna
 ```
 
 `prx auth` sends a minimal model request and may consume Copilot usage. Device
@@ -55,21 +76,21 @@ directory permissions.
 Start Codex:
 
 ```bash
-uv run prx codex --copilot-model gpt-5.6-luna -- \
+prx codex --copilot-model gpt-5.6-luna -- \
   --sandbox workspace-write
 ```
 
 Start only the proxy and keep it running:
 
 ```bash
-uv run prx proxy
+prx proxy
 ```
 
-The proxy reads model aliases from `models.json`, prints its local URL and
-ephemeral API key, and prints a copy-pasteable `export PRX_PROXY_KEY=...`
-command. Paste that command into the shell where Codex runs. It routes the
-requested `model` to the corresponding Copilot model. Add aliases to that file
-before starting the proxy.
+The proxy reads model aliases from `models.json`, uses loopback port `4000` by
+default, and prints a copy-pasteable `export PRX_PROXY_KEY=...` command. Paste
+that command into the shell where Codex runs. It routes the requested `model`
+to the corresponding Copilot model. Add aliases to that file before starting
+the proxy. Use `prx proxy --port PORT` if you need a different fixed port.
 
 Configure Codex to use the standalone proxy in `~/.codex/config.toml`:
 
@@ -79,22 +100,21 @@ model_provider = "prx"
 
 [model_providers.prx]
 name = "prx GitHub Copilot"
-base_url = "http://127.0.0.1:PORT/v1"
+base_url = "http://127.0.0.1:4000/v1"
 env_key = "PRX_PROXY_KEY"
 wire_api = "responses"
 stream_idle_timeout_ms = 300000
 ```
 
-Replace `PORT` with the port printed by `prx proxy`, then paste the printed
-`export PRX_PROXY_KEY=...` command into the shell where you run `codex`.
-Because the standalone proxy currently chooses a new port and API key on each
-start, repeat these two updates after restarting it. The API key is ephemeral
-and the proxy is loopback-only.
+Paste the printed `export PRX_PROXY_KEY=...` command into the shell where you
+run `codex`. The API key is regenerated on each start, but the port remains
+`4000`, so `config.toml` does not need to be edited after every restart. The
+proxy is loopback-only.
 
 To load the API key automatically whenever a new shell starts, add the
 corresponding snippet to your shell startup file.
 
-For zsh (`~/.zshrc`):
+If `prx` is installed as a uv tool, for zsh (`~/.zshrc`):
 
 ```sh
 if command -v prx >/dev/null 2>&1; then
@@ -120,8 +140,12 @@ end
 
 This reads the credentials of an already-running proxy and exports
 `PRX_PROXY_KEY` into the current shell. It does not start the proxy. The
-`base_url` still needs to match the port printed at startup. Bash and zsh use
+`base_url` must match the fixed port selected for the proxy. Bash and zsh use
 `export`; fish uses `set -gx`.
+
+If you do not install `prx` globally, replace `prx` in the snippets above
+with the absolute path to the project virtualenv executable, for example
+`/path/to/prx/.venv/bin/prx`.
 
 Alternatively, use `prx codex`; it starts the proxy and injects the provider
 configuration automatically, so no standalone-proxy settings are needed in
@@ -133,10 +157,10 @@ configuration overrides are rejected because they could bypass the proxy.
 Useful commands:
 
 ```bash
-uv run prx doctor
-uv run prx models
-uv run prx version
-uv run prx cleanup
+prx doctor
+prx models
+prx version
+prx cleanup
 ```
 
 Set `PRX_CODEX_BIN`, `PRX_COPILOT_BIN`, or `PRX_LITELLM_BIN` to override binary

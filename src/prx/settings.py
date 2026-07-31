@@ -13,11 +13,11 @@ DEFAULT_COPILOT_MODEL = "gpt-5.6-luna"
 PROVIDER_ID = "prx"
 
 
-def reserve_loopback_port() -> tuple[socket.socket, int]:
+def reserve_loopback_port(port: int | None = None) -> tuple[socket.socket, int]:
     """Reserve an ephemeral loopback port until the caller is ready to launch."""
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(("127.0.0.1", 0))
+    sock.bind(("127.0.0.1", port or 0))
     return sock, int(sock.getsockname()[1])
 
 
