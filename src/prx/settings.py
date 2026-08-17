@@ -6,11 +6,18 @@ import socket
 import stat
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 from platformdirs import user_cache_path, user_state_path
 
 DEFAULT_COPILOT_MODEL = "gpt-5.6-luna"
+DEFAULT_CLAUDE_MODEL = "claude-sonnet-5"
+DEFAULT_CLAUDE_PLAN_MODEL = "claude-opus-5"
+DEFAULT_CLAUDE_1M_MODEL = "claude-sonnet-5[1m]"
+DEFAULT_CLAUDE_PLAN_1M_MODEL = "claude-opus-5[1m]"
+DEFAULT_CLAUDE_CODE_MODEL = "opusplan"
 PROVIDER_ID = "prx"
+Client = Literal["codex", "claude"]
 
 
 def reserve_loopback_port(port: int | None = None) -> tuple[socket.socket, int]:
@@ -59,6 +66,7 @@ class RuntimeSettings:
     log_path: Path
     models: dict[str, str] = field(default_factory=dict)
     runtime_info_path: Path | None = None
+    client: Client = "codex"
 
     @property
     def base_url(self) -> str:

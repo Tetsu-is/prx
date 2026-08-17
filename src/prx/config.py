@@ -5,16 +5,35 @@ import os
 from pathlib import Path
 from typing import Any
 
-from prx.settings import PROVIDER_ID, RuntimeSettings
+from prx.settings import (
+    DEFAULT_CLAUDE_1M_MODEL,
+    DEFAULT_CLAUDE_CODE_MODEL,
+    DEFAULT_CLAUDE_MODEL,
+    DEFAULT_CLAUDE_PLAN_1M_MODEL,
+    DEFAULT_CLAUDE_PLAN_MODEL,
+    PROVIDER_ID,
+    RuntimeSettings,
+)
+
+
+def claude_model_aliases(model: str) -> dict[str, str]:
+    return {
+        model: model,
+        DEFAULT_CLAUDE_MODEL: DEFAULT_CLAUDE_MODEL,
+        DEFAULT_CLAUDE_PLAN_MODEL: DEFAULT_CLAUDE_PLAN_MODEL,
+        DEFAULT_CLAUDE_1M_MODEL: DEFAULT_CLAUDE_MODEL,
+        DEFAULT_CLAUDE_PLAN_1M_MODEL: DEFAULT_CLAUDE_PLAN_MODEL,
+    }
 
 
 def build_litellm_config(settings: RuntimeSettings) -> dict[str, Any]:
     models = settings.models or {settings.model: settings.model}
+    mode = "responses" if settings.client == "codex" else "chat"
     return {
         "model_list": [
             {
                 "model_name": alias,
-                "model_info": {"mode": "responses"},
+                "model_info": {"mode": mode},
                 "litellm_params": {"model": f"github_copilot/{provider_model}"},
             }
             for alias, provider_model in models.items()
@@ -48,6 +67,17 @@ def build_proxy_environment(settings: RuntimeSettings) -> dict[str, str]:
     return env
 
 
+def build_claude_environment(settings: RuntimeSettings) -> dict[str, str]:
+    env = build_proxy_environment(settings)
+    env.pop("ANTHROPIC_API_KEY", None)
+    env["ANTHROPIC_BASE_URL"] = settings.base_url
+    env["ANTHROPIC_AUTH_TOKEN"] = settings.proxy_key
+    env["ANTHROPIC_MODEL"] = DEFAULT_CLAUDE_CODE_MODEL
+    env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = DEFAULT_CLAUDE_PLAN_1M_MODEL
+    env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = DEFAULT_CLAUDE_1M_MODEL
+    return env
+
+
 def toml_string(value: str) -> str:
     # JSON strings and TOML basic strings share the escaping needed here.
     return json.dumps(value)
@@ -74,6 +104,20 @@ def build_codex_command(
         command.extend(["-c", override])
     command.extend(forwarded_args)
     return command
+
+
+def build_claude_command(
+    claude_binary: str,
+    forwarded_args: list[str],
+) -> list[str]:
+    return [claude_binary, *forwarded_args]
+
+
+def validate_claude_model(model: str) -> None:
+    if "claude" not in model.lower():
+        raise ValueError(
+            f"{model!r} is not a Claude model; use a Claude model available to your Copilot account"
+        )
 
 
 def validate_forwarded_args(args: list[str]) -> None:

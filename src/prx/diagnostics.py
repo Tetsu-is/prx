@@ -50,6 +50,14 @@ def collect_checks() -> list[Check]:
             command_version(copilot, "--version") if copilot else "missing (optional)",
         )
     )
+    claude = resolve_binary("claude", "PRX_CLAUDE_BIN")
+    checks.append(
+        Check(
+            "Claude Code",
+            claude is not None,
+            command_version(claude, "--version") if claude else "missing (optional)",
+        )
+    )
     try:
         version = importlib.metadata.version("litellm")
         checks.append(Check("LiteLLM", True, version))

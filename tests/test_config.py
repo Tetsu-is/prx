@@ -7,8 +7,11 @@ from pathlib import Path
 import pytest
 
 from prx.config import (
+    build_claude_command,
+    build_claude_environment,
     build_codex_command,
     build_litellm_config,
+    claude_model_aliases,
     remove_owned_runtime_files,
     write_litellm_config,
 )
@@ -36,12 +39,25 @@ def test_litellm_config_routes_responses_model(tmp_path) -> None:
     assert "sk-prx-secret" not in json.dumps(payload)
 
 
+def test_litellm_config_routes_claude_messages_model(tmp_path) -> None:
+    runtime = RuntimeSettings(**{**settings(tmp_path).__dict__, "client": "claude"})
+
+    deployment = build_litellm_config(runtime)["model_list"][0]
+
+    assert deployment["model_info"]["mode"] == "chat"
+
+
 def test_litellm_config_routes_multiple_aliases(tmp_path) -> None:
     runtime = settings(tmp_path)
-    runtime = RuntimeSettings(**{**runtime.__dict__, "models": {
-        "fast": "gpt-test",
-        "reasoning": "gpt-reasoning",
-    }})
+    runtime = RuntimeSettings(
+        **{
+            **runtime.__dict__,
+            "models": {
+                "fast": "gpt-test",
+                "reasoning": "gpt-reasoning",
+            },
+        }
+    )
 
     deployments = build_litellm_config(runtime)["model_list"]
 
@@ -68,19 +84,59 @@ def test_codex_command_has_ephemeral_provider(tmp_path) -> None:
     assert command[-2:] == ["--sandbox", "read-only"]
 
 
+def test_claude_command_forwards_arguments() -> None:
+    command = build_claude_command("claude", ["--dangerously-skip-permissions"])
+
+    assert command == ["claude", "--dangerously-skip-permissions"]
+
+
+def test_claude_environment_points_at_messages_proxy(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "existing-key")
+    runtime = RuntimeSettings(
+        **{
+            **settings(tmp_path).__dict__,
+            "model": "claude-sonnet-5",
+            "client": "claude",
+        }
+    )
+
+    environment = build_claude_environment(runtime)
+
+    assert environment["ANTHROPIC_BASE_URL"] == "http://127.0.0.1:4567"
+    assert environment["ANTHROPIC_AUTH_TOKEN"] == "sk-prx-secret"
+    assert environment["ANTHROPIC_MODEL"] == "opusplan"
+    assert environment["ANTHROPIC_DEFAULT_OPUS_MODEL"] == "claude-opus-5[1m]"
+    assert environment["ANTHROPIC_DEFAULT_SONNET_MODEL"] == "claude-sonnet-5[1m]"
+    assert "ANTHROPIC_API_KEY" not in environment
+
+
+def test_claude_model_aliases_map_1m_names_to_provider_models() -> None:
+    aliases = claude_model_aliases("claude-sonnet-5")
+
+    assert aliases["claude-opus-5[1m]"] == "claude-opus-5"
+    assert aliases["claude-sonnet-5[1m]"] == "claude-sonnet-5"
+
+
 @pytest.mark.parametrize(
     "args",
     [
         ["--model", "openai-model"],
         ["-m=openai-model"],
         ["--profile", "other"],
-        ["-c", "model_provider=\"openai\""],
-        ["--config=model_providers.bad.base_url=\"https://example.com\""],
+        ["-c", 'model_provider="openai"'],
+        ['--config=model_providers.bad.base_url="https://example.com"'],
     ],
 )
 def test_codex_command_rejects_provider_bypass(tmp_path, args) -> None:
     with pytest.raises(ValueError):
         build_codex_command("codex", settings(tmp_path), args)
+
+
+def test_claude_model_must_use_anthropic_messages_adapter() -> None:
+    from prx.config import validate_claude_model
+
+    with pytest.raises(ValueError, match="not a Claude model"):
+        validate_claude_model("gpt-5.6-luna")
 
 
 def test_cleanup_only_removes_marked_directories(tmp_path) -> None:
