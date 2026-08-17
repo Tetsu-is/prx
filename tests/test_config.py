@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 
 from prx.config import (
+    AUTO_MODEL,
+    AUTO_PROVIDER_MODEL,
     build_codex_command,
     build_litellm_config,
     remove_owned_runtime_files,
@@ -36,6 +38,18 @@ def test_litellm_config_routes_responses_model(tmp_path) -> None:
     assert "sk-prx-secret" not in json.dumps(payload)
 
 
+def test_litellm_config_routes_codex_auto_review_to_supported_model(tmp_path) -> None:
+    deployments = build_litellm_config(settings(tmp_path))["model_list"]
+
+    auto_deployment = next(
+        deployment for deployment in deployments if deployment["model_name"] == AUTO_MODEL
+    )
+
+    assert auto_deployment["litellm_params"]["model"] == (
+        f"github_copilot/{AUTO_PROVIDER_MODEL}"
+    )
+
+
 def test_litellm_config_routes_multiple_aliases(tmp_path) -> None:
     runtime = settings(tmp_path)
     runtime = RuntimeSettings(**{**runtime.__dict__, "models": {
@@ -45,7 +59,11 @@ def test_litellm_config_routes_multiple_aliases(tmp_path) -> None:
 
     deployments = build_litellm_config(runtime)["model_list"]
 
-    assert [deployment["model_name"] for deployment in deployments] == ["fast", "reasoning"]
+    assert [deployment["model_name"] for deployment in deployments] == [
+        "fast",
+        "reasoning",
+        AUTO_MODEL,
+    ]
     assert deployments[1]["litellm_params"]["model"] == "github_copilot/gpt-reasoning"
 
 

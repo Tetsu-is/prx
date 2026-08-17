@@ -7,9 +7,18 @@ from typing import Any
 
 from prx.settings import PROVIDER_ID, RuntimeSettings
 
+AUTO_MODEL = "codex-auto-review"
+AUTO_PROVIDER_MODEL = "gpt-5.6-sol"
+
+
+def configured_models(settings: RuntimeSettings) -> dict[str, str]:
+    models = dict(settings.models or {settings.model: settings.model})
+    models.setdefault(AUTO_MODEL, AUTO_PROVIDER_MODEL)
+    return models
+
 
 def build_litellm_config(settings: RuntimeSettings) -> dict[str, Any]:
-    models = settings.models or {settings.model: settings.model}
+    models = configured_models(settings)
     return {
         "model_list": [
             {

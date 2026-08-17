@@ -92,6 +92,10 @@ that command into the shell where Codex runs. It routes the requested `model`
 to the corresponding Copilot model. Add aliases to that file before starting
 the proxy. Use `prx proxy --port PORT` if you need a different fixed port.
 
+Codex's Auto mode sends the internal model ID `codex-auto-review`. The proxy
+handles that ID automatically and routes it to the Copilot model `gpt-5.6-sol`;
+it does not need to be added to `models.json`.
+
 Configure Codex to use the standalone proxy in `~/.codex/config.toml`:
 
 ```toml
