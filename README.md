@@ -36,22 +36,22 @@ uv tool update-shell
 prx doctor
 ```
 
-これで、このリポジトリをクローンした各ユーザーの環境に、このプロジェクトの
-`prx` コマンドがインストールされます。`--editable` を指定しているため、
-リポジトリ内のPythonコードや `models.json` の変更がそのまま反映されます。
-`uv tool update-shell` の後は、新しいターミナルを開くか、表示されたPATH設定を
-現在のシェルに反映してください。
+This installs the project's `prx` command into the environment of each user
+who clones this repository. Because `--editable` is specified, changes to the
+Python code or `models.json` in the repository take effect immediately.
+After `uv tool update-shell`, open a new terminal or apply the printed PATH
+configuration to your current shell.
 
-プロジェクトをグローバルコマンドとしてインストールしたくない場合は、代わりに
-プロジェクトディレクトリから次の形式で実行できます。
+If you do not want to install the project as a global command, you can
+instead run it from the project directory in the following form.
 
 ```bash
 prx doctor
 prx proxy
 ```
 
-クローンした場所に依存せず、シェルから常に `prx` として呼び出したい場合は、
-`uv tool install --editable .` を使ってください。
+If you want to always invoke it as `prx` from the shell regardless of where
+you cloned it, use `uv tool install --editable .`.
 
 The project pins LiteLLM exactly in `pyproject.toml` and `uv.lock`. Review
 dependency changes before upgrading it.
