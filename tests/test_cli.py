@@ -92,3 +92,5 @@ def test_claude_starts_child_with_messages_environment(monkeypatch, tmp_path: Pa
     assert environment["ANTHROPIC_BASE_URL"] == "http://127.0.0.1:4567"
     assert environment["ANTHROPIC_AUTH_TOKEN"] == "sk-prx-secret"
     assert environment["ANTHROPIC_MODEL"] == "opusplan"
+    assert environment["ANTHROPIC_DEFAULT_OPUS_MODEL"] == "claude-opus-5[1m]"
+    assert environment["ANTHROPIC_DEFAULT_SONNET_MODEL"] == "claude-sonnet-5[1m]"

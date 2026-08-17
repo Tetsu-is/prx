@@ -170,10 +170,10 @@ prx claude --copilot-model claude-sonnet-5 -- \
 
 `prx claude` sets `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, and
 `ANTHROPIC_MODEL=opusplan` only for the Claude Code child process. The proxy
-publishes both `claude-opus-5` and `claude-sonnet-5`, so Claude Code uses Opus
-while planning and Sonnet while executing. The selected upstream model must
-contain `claude`, because LiteLLM's GitHub Copilot Messages adapter supports
-Claude models.
+publishes 1M aliases for both `claude-opus-5` and `claude-sonnet-5`, so Claude
+Code uses 1M Opus while planning and 1M Sonnet while executing. The selected
+upstream model must contain `claude`, because LiteLLM's GitHub Copilot Messages
+adapter supports Claude models.
 
 To run a standalone Claude Code proxy, use:
 

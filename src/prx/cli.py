@@ -16,6 +16,7 @@ from prx.config import (
     build_claude_environment,
     build_codex_command,
     build_proxy_environment,
+    claude_model_aliases,
     remove_owned_runtime_files,
     validate_claude_model,
     validate_forwarded_args,
@@ -29,9 +30,10 @@ from prx.runtime import (
     running_proxy,
 )
 from prx.settings import (
+    DEFAULT_CLAUDE_1M_MODEL,
     DEFAULT_CLAUDE_CODE_MODEL,
     DEFAULT_CLAUDE_MODEL,
-    DEFAULT_CLAUDE_PLAN_MODEL,
+    DEFAULT_CLAUDE_PLAN_1M_MODEL,
     DEFAULT_COPILOT_MODEL,
     Client,
     cache_directory,
@@ -147,11 +149,7 @@ def proxy(
         except ValueError as exc:
             typer.echo(str(exc), err=True)
             raise typer.Exit(2) from exc
-        configured = {
-            **configured,
-            default_model: default_model,
-            DEFAULT_CLAUDE_PLAN_MODEL: DEFAULT_CLAUDE_PLAN_MODEL,
-        }
+        configured = {**configured, **claude_model_aliases(default_model)}
     elif default_model not in configured:
         configured = {**configured, default_model: default_model}
     try:
@@ -173,6 +171,8 @@ def proxy(
                 typer.echo(f"export ANTHROPIC_BASE_URL={shlex.quote(settings.base_url)}")
                 typer.echo(f"export ANTHROPIC_AUTH_TOKEN={shlex.quote(settings.proxy_key)}")
                 typer.echo("export ANTHROPIC_MODEL=opusplan")
+                typer.echo(f"export ANTHROPIC_DEFAULT_OPUS_MODEL={DEFAULT_CLAUDE_PLAN_1M_MODEL}")
+                typer.echo(f"export ANTHROPIC_DEFAULT_SONNET_MODEL={DEFAULT_CLAUDE_1M_MODEL}")
             else:
                 typer.echo("\nCopy this into the shell where you run Codex:")
                 typer.echo(f"export PRX_PROXY_KEY={shlex.quote(settings.proxy_key)}")
@@ -327,10 +327,7 @@ def claude(
         raise typer.Exit(2) from exc
     settings = create_runtime_settings(
         copilot_model,
-        models={
-            copilot_model: copilot_model,
-            DEFAULT_CLAUDE_PLAN_MODEL: DEFAULT_CLAUDE_PLAN_MODEL,
-        },
+        models=claude_model_aliases(copilot_model),
         client="claude",
     )
     forwarded_args = list(ctx.args)

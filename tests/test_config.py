@@ -11,6 +11,7 @@ from prx.config import (
     build_claude_environment,
     build_codex_command,
     build_litellm_config,
+    claude_model_aliases,
     remove_owned_runtime_files,
     write_litellm_config,
 )
@@ -104,7 +105,16 @@ def test_claude_environment_points_at_messages_proxy(monkeypatch, tmp_path) -> N
     assert environment["ANTHROPIC_BASE_URL"] == "http://127.0.0.1:4567"
     assert environment["ANTHROPIC_AUTH_TOKEN"] == "sk-prx-secret"
     assert environment["ANTHROPIC_MODEL"] == "opusplan"
+    assert environment["ANTHROPIC_DEFAULT_OPUS_MODEL"] == "claude-opus-5[1m]"
+    assert environment["ANTHROPIC_DEFAULT_SONNET_MODEL"] == "claude-sonnet-5[1m]"
     assert "ANTHROPIC_API_KEY" not in environment
+
+
+def test_claude_model_aliases_map_1m_names_to_provider_models() -> None:
+    aliases = claude_model_aliases("claude-sonnet-5")
+
+    assert aliases["claude-opus-5[1m]"] == "claude-opus-5"
+    assert aliases["claude-sonnet-5[1m]"] == "claude-sonnet-5"
 
 
 @pytest.mark.parametrize(

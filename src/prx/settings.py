@@ -13,6 +13,8 @@ from platformdirs import user_cache_path, user_state_path
 DEFAULT_COPILOT_MODEL = "gpt-5.6-luna"
 DEFAULT_CLAUDE_MODEL = "claude-sonnet-5"
 DEFAULT_CLAUDE_PLAN_MODEL = "claude-opus-5"
+DEFAULT_CLAUDE_1M_MODEL = "claude-sonnet-5[1m]"
+DEFAULT_CLAUDE_PLAN_1M_MODEL = "claude-opus-5[1m]"
 DEFAULT_CLAUDE_CODE_MODEL = "opusplan"
 PROVIDER_ID = "prx"
 Client = Literal["codex", "claude"]

@@ -5,7 +5,25 @@ import os
 from pathlib import Path
 from typing import Any
 
-from prx.settings import DEFAULT_CLAUDE_CODE_MODEL, PROVIDER_ID, RuntimeSettings
+from prx.settings import (
+    DEFAULT_CLAUDE_1M_MODEL,
+    DEFAULT_CLAUDE_CODE_MODEL,
+    DEFAULT_CLAUDE_MODEL,
+    DEFAULT_CLAUDE_PLAN_1M_MODEL,
+    DEFAULT_CLAUDE_PLAN_MODEL,
+    PROVIDER_ID,
+    RuntimeSettings,
+)
+
+
+def claude_model_aliases(model: str) -> dict[str, str]:
+    return {
+        model: model,
+        DEFAULT_CLAUDE_MODEL: DEFAULT_CLAUDE_MODEL,
+        DEFAULT_CLAUDE_PLAN_MODEL: DEFAULT_CLAUDE_PLAN_MODEL,
+        DEFAULT_CLAUDE_1M_MODEL: DEFAULT_CLAUDE_MODEL,
+        DEFAULT_CLAUDE_PLAN_1M_MODEL: DEFAULT_CLAUDE_PLAN_MODEL,
+    }
 
 
 def build_litellm_config(settings: RuntimeSettings) -> dict[str, Any]:
@@ -55,6 +73,8 @@ def build_claude_environment(settings: RuntimeSettings) -> dict[str, str]:
     env["ANTHROPIC_BASE_URL"] = settings.base_url
     env["ANTHROPIC_AUTH_TOKEN"] = settings.proxy_key
     env["ANTHROPIC_MODEL"] = DEFAULT_CLAUDE_CODE_MODEL
+    env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = DEFAULT_CLAUDE_PLAN_1M_MODEL
+    env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = DEFAULT_CLAUDE_1M_MODEL
     return env
 
 
