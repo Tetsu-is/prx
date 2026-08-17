@@ -19,6 +19,7 @@ import httpx
 
 from prx.config import build_proxy_environment, write_litellm_config
 from prx.settings import (
+    Client,
     RuntimeSettings,
     cache_directory,
     copilot_token_directory,
@@ -72,6 +73,7 @@ def create_runtime_settings(
     model: str,
     models: dict[str, str] | None = None,
     port: int | None = None,
+    client: Client = "codex",
 ) -> RuntimeSettings:
     cache_root = cache_directory()
     runtime_dir = Path(tempfile.mkdtemp(prefix="run-", dir=cache_root))
@@ -90,6 +92,7 @@ def create_runtime_settings(
         log_path=runtime_dir / "proxy.log",
         models=models or {},
         runtime_info_path=state_directory() / "proxy-runtime.json",
+        client=client,
     )
 
 
@@ -205,6 +208,8 @@ class ProxyProcess:
                     "pid": self.process.pid,
                     "port": self.settings.port,
                     "proxy_key": self.settings.proxy_key,
+                    "client": self.settings.client,
+                    "model": self.settings.model,
                 }
             )
             + "\n",

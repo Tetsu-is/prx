@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "prx"
 version = "0.1.0"
-description = "Run Codex CLI through a local LiteLLM GitHub Copilot proxy."
+description = "Run Codex CLI or Claude Code through a local LiteLLM GitHub Copilot proxy."
 readme = "README.md"
 requires-python = ">=3.12,<3.15"
 license = { text = "MIT" }

@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
+from pathlib import Path
+
 from typer.testing import CliRunner
 
 from prx import __version__
 from prx.cli import app
 from prx.diagnostics import Check
+from prx.settings import RuntimeSettings
 
 runner = CliRunner()
 
@@ -43,3 +47,48 @@ def test_codex_rejects_bypass_before_proxy_start(monkeypatch, tmp_path) -> None:
     assert result.exit_code == 2
     assert "would bypass the prx provider" in result.stderr
 
+
+def test_claude_requires_claude_binary(monkeypatch) -> None:
+    monkeypatch.setattr("prx.cli.resolve_binary", lambda *_args: None)
+
+    result = runner.invoke(app, ["claude"])
+
+    assert result.exit_code == 1
+    assert "Claude Code was not found" in result.stderr
+
+
+def test_claude_starts_child_with_messages_environment(monkeypatch, tmp_path: Path) -> None:
+    runtime = RuntimeSettings(
+        model="claude-sonnet-5",
+        port=4567,
+        proxy_key="sk-prx-secret",
+        token_directory=tmp_path / "tokens",
+        config_path=tmp_path / "run" / "litellm.json",
+        log_path=tmp_path / "run" / "proxy.log",
+        client="claude",
+    )
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr("prx.cli.resolve_binary", lambda *_args: "/usr/bin/claude")
+    monkeypatch.setattr("prx.cli.create_runtime_settings", lambda *_args, **_kwargs: runtime)
+    monkeypatch.setattr("prx.cli.running_proxy", lambda *_args, **_kwargs: nullcontext())
+
+    def fake_run(command: list[str], environment: dict[str, str]) -> int:
+        captured["command"] = command
+        captured["environment"] = environment
+        return 0
+
+    monkeypatch.setattr("prx.cli.run_interactive_child", fake_run)
+
+    result = runner.invoke(
+        app,
+        ["claude", "--copilot-model", "claude-sonnet-5", "--", "--print"],
+    )
+
+    assert result.exit_code == 0
+    assert captured["command"] == ["/usr/bin/claude", "--print"]
+    environment = captured["environment"]
+    assert isinstance(environment, dict)
+    assert environment["ANTHROPIC_BASE_URL"] == "http://127.0.0.1:4567"
+    assert environment["ANTHROPIC_AUTH_TOKEN"] == "sk-prx-secret"
+    assert environment["ANTHROPIC_MODEL"] == "opusplan"

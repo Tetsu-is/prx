@@ -1,8 +1,8 @@
 # prx
 
 `prx` starts a loopback-only LiteLLM Proxy. It can either run as a standalone
-server or launch Codex CLI with an ephemeral custom model provider. Model
-requests are routed to LiteLLM's `github_copilot` provider.
+server or launch Codex CLI or Claude Code with an ephemeral custom model
+provider. Model requests are routed to LiteLLM's `github_copilot` provider.
 
 > [!WARNING]
 > This is an experimental, single-user proof of concept. LiteLLM's
@@ -15,14 +15,15 @@ requests are routed to LiteLLM's `github_copilot` provider.
 
 - macOS and Python 3.12+
 - `uv`
-- Codex CLI
+- Codex CLI and/or Claude Code
 - A GitHub account entitled to use GitHub Copilot
 
 The GitHub Copilot CLI is recommended for checking account model availability,
 but it is not on the model request path:
 
 ```text
-Codex CLI -> 127.0.0.1 LiteLLM /v1/responses -> GitHub Copilot Chat API
+Codex CLI   -> 127.0.0.1 LiteLLM /v1/responses -> GitHub Copilot API
+Claude Code -> 127.0.0.1 LiteLLM /v1/messages  -> GitHub Copilot API
 ```
 
 ## Install
@@ -72,6 +73,12 @@ prx auth --copilot-model gpt-5.6-luna
 flow output is shown from redacted LiteLLM logs. OAuth credentials are stored in
 the platform-specific `prx/github-copilot` state directory with user-only
 directory permissions.
+
+For Claude Code, use a Claude model available in your Copilot account:
+
+```bash
+prx auth --client claude --copilot-model claude-sonnet-5
+```
 
 Start Codex:
 
@@ -154,6 +161,30 @@ configuration automatically, so no standalone-proxy settings are needed in
 Everything after `--` is passed to Codex. `--model`, `--profile`, and provider
 configuration overrides are rejected because they could bypass the proxy.
 
+Start Claude Code with an ephemeral Messages API proxy:
+
+```bash
+prx claude --copilot-model claude-sonnet-5 -- \
+  --dangerously-skip-permissions
+```
+
+`prx claude` sets `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, and
+`ANTHROPIC_MODEL=opusplan` only for the Claude Code child process. The proxy
+publishes both `claude-opus-5` and `claude-sonnet-5`, so Claude Code uses Opus
+while planning and Sonnet while executing. The selected upstream model must
+contain `claude`, because LiteLLM's GitHub Copilot Messages adapter supports
+Claude models.
+
+To run a standalone Claude Code proxy, use:
+
+```bash
+prx proxy --client claude --copilot-model claude-sonnet-5
+```
+
+In another shell, load the printed environment with `eval "$(prx proxy
+setenv)"`, then run `claude`. The standalone proxy includes the configured
+model, `claude-opus-5` for plan mode, and `claude-sonnet-5` for execution.
+
 Useful commands:
 
 ```bash
@@ -163,9 +194,9 @@ prx version
 prx cleanup
 ```
 
-Set `PRX_CODEX_BIN`, `PRX_COPILOT_BIN`, or `PRX_LITELLM_BIN` to override binary
-locations. `PRX_STATE_DIR` and `PRX_CACHE_DIR` override state and runtime
-directories for testing.
+Set `PRX_CODEX_BIN`, `PRX_CLAUDE_BIN`, `PRX_COPILOT_BIN`, or
+`PRX_LITELLM_BIN` to override binary locations. `PRX_STATE_DIR` and
+`PRX_CACHE_DIR` override state and runtime directories for testing.
 
 ## Verification gate
 
