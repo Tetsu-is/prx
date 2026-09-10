@@ -127,33 +127,58 @@ def test_proxy_reuses_saved_key_on_each_start(isolated_runtime, monkeypatch) -> 
     assert all(settings.proxy_key == saved_key for settings in started)
 
 
-@pytest.mark.parametrize("shell", ["bash", "zsh", "fish"])
-def test_setenv_uses_running_key_after_disk_rotation(isolated_runtime, shell) -> None:
-    setup_proxy_key()
-    running_key = load_proxy_key()
-    proxy = ProxyProcess(create_runtime_settings("test", proxy_key=running_key))
+def _register_running_proxy(key: str) -> None:
+    proxy = ProxyProcess(create_runtime_settings("test", proxy_key=key))
     proxy.process = MagicMock(pid=os.getpid())
     proxy._write_runtime_info()
 
+
+def test_key_prints_only_the_running_key_after_disk_rotation(isolated_runtime) -> None:
+    setup_proxy_key()
+    running_key = load_proxy_key()
+    _register_running_proxy(running_key)
+
     setup_proxy_key(rotate=True)
     rotated_key = load_proxy_key()
-    result = runner.invoke(app, ["proxy", "setenv", "--shell", shell])
+    result = runner.invoke(app, ["proxy", "key"])
 
     assert result.exit_code == 0, result.output
-    assert running_key in result.stdout
+    assert result.stdout.strip() == running_key
     assert rotated_key not in result.stdout
-    if shell == "fish":
-        assert f"set -gx PRX_PROXY_KEY {running_key}" in result.stdout
-    else:
-        assert f"export PRX_PROXY_KEY={running_key}" in result.stdout
 
 
-def test_setenv_requires_running_proxy_even_with_saved_key(isolated_runtime) -> None:
+def test_key_requires_running_proxy_even_with_saved_key(isolated_runtime) -> None:
     setup_proxy_key()
-    result = runner.invoke(app, ["proxy", "setenv"])
+    result = runner.invoke(app, ["proxy", "key"])
     assert result.exit_code != 0
     assert "No running prx proxy was found" in result.output
     assert load_proxy_key() not in result.output
+
+
+def test_info_reports_the_endpoint_without_the_key(isolated_runtime) -> None:
+    setup_proxy_key()
+    running_key = load_proxy_key()
+    _register_running_proxy(running_key)
+
+    result = runner.invoke(app, ["proxy", "info"])
+
+    assert result.exit_code == 0, result.output
+    assert f"pid       {os.getpid()}" in result.stdout
+    assert "base_url  http://127.0.0.1:" in result.stdout
+    assert running_key not in result.stdout
+
+
+def test_info_requires_running_proxy(isolated_runtime) -> None:
+    setup_proxy_key()
+    result = runner.invoke(app, ["proxy", "info"])
+    assert result.exit_code != 0
+    assert "No running prx proxy was found" in result.output
+
+
+def test_setenv_is_no_longer_accepted(isolated_runtime) -> None:
+    result = runner.invoke(app, ["proxy", "setenv"])
+    assert result.exit_code == 2
+    assert "Unknown proxy action: setenv" in result.output
 
 
 @pytest.mark.parametrize("command", ["auth", "codex"])

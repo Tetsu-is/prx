@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 import os
-import shlex
 import shutil
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
 
@@ -33,6 +33,13 @@ app = typer.Typer(
     help="Run Codex CLI through a local LiteLLM GitHub Copilot proxy.",
     no_args_is_help=True,
 )
+
+
+@dataclass(frozen=True)
+class RunningProxyState:
+    pid: int
+    port: int
+    proxy_key: str
 
 
 @app.command()
@@ -109,24 +116,25 @@ def models() -> None:
 def proxy(
     action: Annotated[
         str,
-        typer.Argument(help="Use 'setenv' to print exports for a running proxy."),
+        typer.Argument(
+            help="'start', 'key' to print the running proxy's API key, or 'info' for its endpoint."
+        ),
     ] = "start",
     verbose_proxy: Annotated[
         bool,
         typer.Option("--verbose-proxy", help="Mirror redacted LiteLLM logs to stderr."),
     ] = False,
-    shell: Annotated[
-        str,
-        typer.Option("--shell", help="Shell syntax for 'setenv': bash, zsh, or fish."),
-    ] = "bash",
     port: Annotated[
         int,
         typer.Option("--port", help="Loopback port for the standalone proxy."),
     ] = 4000,
 ) -> None:
     """Start a standalone loopback proxy until interrupted."""
-    if action == "setenv":
-        _print_proxy_environment(shell)
+    if action == "key":
+        typer.echo(_running_proxy_state().proxy_key)
+        return
+    if action == "info":
+        _print_proxy_info()
         return
     if action != "start":
         typer.echo(f"Unknown proxy action: {action}", err=True)
@@ -152,11 +160,10 @@ def proxy(
     try:
         with running_proxy(settings, show_logs=verbose_proxy) as running:
             typer.echo(f"Proxy listening at {settings.base_url}/v1")
-            typer.echo(f"API key: {settings.proxy_key}")
-            typer.echo("\nCopy this into the shell where you run Codex:")
-            typer.echo(f"export PRX_PROXY_KEY={shlex.quote(settings.proxy_key)}")
-            typer.echo(f'# config.toml: base_url = "{settings.base_url}/v1"')
             typer.echo(f"Models: {', '.join(configured)}")
+            typer.echo(
+                "\nIn the shell where you run Codex, set PRX_PROXY_KEY from 'prx proxy key'."
+            )
             typer.echo("Press Ctrl-C to stop.")
             try:
                 running.wait()
@@ -264,9 +271,7 @@ def cleanup() -> None:
     typer.echo(f"Removed {len(removed)} stale runtime {noun}.")
 
 
-def _print_proxy_environment(shell: str) -> None:
-    if shell not in {"bash", "zsh", "fish"}:
-        raise typer.BadParameter("--shell must be bash, zsh, or fish")
+def _running_proxy_state() -> RunningProxyState:
     path = state_directory() / "proxy-runtime.json"
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -277,12 +282,17 @@ def _print_proxy_environment(shell: str) -> None:
         if not proxy_key.startswith("sk-prx-"):
             raise ValueError("invalid proxy key")
     except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
-        raise typer.BadParameter("No running prx proxy was found") from exc
-    if shell == "fish":
-        typer.echo(f"set -gx PRX_PROXY_KEY {shlex.quote(proxy_key)}")
-    else:
-        typer.echo(f"export PRX_PROXY_KEY={shlex.quote(proxy_key)}")
-    typer.echo(f"# config.toml: base_url = \"http://127.0.0.1:{port}/v1\"")
+        typer.echo("No running prx proxy was found", err=True)
+        raise typer.Exit(1) from exc
+    return RunningProxyState(pid=pid, port=port, proxy_key=proxy_key)
+
+
+def _print_proxy_info() -> None:
+    state = _running_proxy_state()
+    typer.echo(f"pid       {state.pid}")
+    typer.echo(f"port      {state.port}")
+    typer.echo(f"base_url  http://127.0.0.1:{state.port}/v1")
+    typer.echo("api_key   print it with 'prx proxy key'")
 
 
 def _remove_runtime_directory(path: Path) -> None:

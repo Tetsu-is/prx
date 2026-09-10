@@ -94,7 +94,7 @@ prx proxy
 
 `prx setup` creates `proxy-key` in the platform-specific `prx` state directory
 and prints its path. Set `PRX_STATE_DIR` to use a different state directory;
-use the same setting for setup, proxy startup, and setenv.
+use the same setting for setup, proxy startup, and `prx proxy key`.
 The directory is created with mode `0700` and the key file with
 mode `0600`; running setup again preserves the existing key and does not print
 it. An empty or invalid key file causes setup to fail. Starting `prx proxy`
@@ -124,27 +124,24 @@ wire_api = "responses"
 stream_idle_timeout_ms = 300000
 ```
 
-The proxy is loopback-only. After the proxy is running, load its active key in
-the shell where you run `codex` with `eval "$(prx proxy setenv)"` for bash/zsh
-(or use one of the startup snippets below). The key is read from the running
-proxy, so the `base_url` must match the fixed port selected for the proxy.
+The proxy is loopback-only. After the proxy is running, `prx proxy key` prints
+its active API key on one line, and `prx proxy info` prints the pid, port, and
+`base_url` without the key. Both read runtime information from the running
+proxy rather than the saved `proxy-key` file, and neither starts the proxy. If
+no proxy is running they write an error to stderr and exit non-zero.
 
-To load the API key automatically whenever a new shell starts, add the
-corresponding snippet to your shell startup file.
+Set `PRX_PROXY_KEY` in the shell where you run `codex`. Never hard-code the key
+in a shell startup file: it goes stale the moment the key is rotated, and the
+resulting mismatch surfaces as LiteLLM's misleading `No connected db.` error.
+Read it from `prx proxy key` instead.
 
-If `prx` is installed as a uv tool, for zsh (`~/.zshrc`):
+For zsh (`~/.zshrc`) and bash (`~/.bashrc`):
 
 ```sh
 if command -v prx >/dev/null 2>&1; then
-  eval "$(prx proxy setenv 2>/dev/null)"
-fi
-```
-
-For bash (`~/.bashrc`):
-
-```bash
-if command -v prx >/dev/null 2>&1; then
-  eval "$(prx proxy setenv --shell bash 2>/dev/null)"
+  prx_key="$(prx proxy key 2>/dev/null)" && [ -n "$prx_key" ] &&
+    export PRX_PROXY_KEY="$prx_key"
+  unset prx_key
 fi
 ```
 
@@ -152,14 +149,18 @@ For fish (`~/.config/fish/config.fish`):
 
 ```fish
 if type -q prx
-  eval (prx proxy setenv --shell fish 2>/dev/null)
+  set -l prx_key (prx proxy key 2>/dev/null)
+  test -n "$prx_key"; and set -gx PRX_PROXY_KEY $prx_key
 end
 ```
 
-This reads the credentials of an already-running proxy and exports its active
-`PRX_PROXY_KEY` into the current shell. It reads runtime information rather
-than the saved `proxy-key` file and does not start the proxy.
-Bash and zsh use `export`; fish uses `set -gx`.
+The emptiness check matters: without it, a shell started while no proxy is
+running would export an empty `PRX_PROXY_KEY`, and Codex would send an empty
+bearer token instead of failing on the missing variable.
+
+Use `set -gx`, not `set -Ux`. A fish universal variable is persisted in
+`fish_variables` and survives deleting the line from `config.fish`; erasing it
+takes an explicit `set -eU PRX_PROXY_KEY`.
 
 To rotate the persistent standalone key:
 
@@ -168,11 +169,11 @@ prx setup --rotate-key
 ```
 
 Rotation atomically replaces the key on disk. If a proxy is running, restart
-it before using the new key, then reload the shell environment with
-`eval "$(prx proxy setenv)"` for bash/zsh (or the fish snippet above). Update any
-keys saved in client configurations as well. Until the proxy is restarted,
-`prx proxy setenv` continues to return the old key from the running proxy.
-An empty or invalid key file also causes rotation to fail.
+it before using the new key, then re-export `PRX_PROXY_KEY` in each open shell
+using the snippet above. Update any keys saved in client configurations as
+well. Until the proxy is restarted, `prx proxy key` continues to return the old
+key from the running proxy. An empty or invalid key file also causes rotation
+to fail.
 
 If you do not install `prx` globally, replace `prx` in the snippets above
 with the absolute path to the project virtualenv executable, for example

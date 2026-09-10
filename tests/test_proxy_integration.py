@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import shlex
 import signal
 import socket
 import subprocess
@@ -153,8 +152,8 @@ HTTPServer((args.host, args.port), Handler).serve_forever()
         _assert_health(int(first_runtime["port"]), first_key, expected=200)
         _assert_health(int(first_runtime["port"]), "sk-prx-wrong", expected=401)
 
-        setenv = subprocess.run(
-            [*cli, "proxy", "setenv"],
+        key_output = subprocess.run(
+            [*cli, "proxy", "key"],
             env=env,
             cwd=source_dir.parent,
             capture_output=True,
@@ -162,9 +161,21 @@ HTTPServer((args.host, args.port), Handler).serve_forever()
             timeout=10,
             check=False,
         )
-        assert setenv.returncode == 0
-        assert f"export PRX_PROXY_KEY={shlex.quote(first_key)}" in setenv.stdout
-        assert f'base_url = "http://127.0.0.1:{first_runtime["port"]}/v1"' in setenv.stdout
+        assert key_output.returncode == 0
+        assert key_output.stdout.strip() == first_key
+
+        info = subprocess.run(
+            [*cli, "proxy", "info"],
+            env=env,
+            cwd=source_dir.parent,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        assert info.returncode == 0
+        assert f"base_url  http://127.0.0.1:{first_runtime['port']}/v1" in info.stdout
+        assert first_key not in info.stdout
 
         rotate = subprocess.run(
             [*cli, "setup", "--rotate-key"],
@@ -181,7 +192,7 @@ HTTPServer((args.host, args.port), Handler).serve_forever()
         assert rotated_key != first_key
 
         still_old = subprocess.run(
-            [*cli, "proxy", "setenv"],
+            [*cli, "proxy", "key"],
             env=env,
             cwd=source_dir.parent,
             capture_output=True,
@@ -190,8 +201,8 @@ HTTPServer((args.host, args.port), Handler).serve_forever()
             check=False,
         )
         assert still_old.returncode == 0
-        assert f"export PRX_PROXY_KEY={shlex.quote(first_key)}" in still_old.stdout
-        assert f"export PRX_PROXY_KEY={shlex.quote(rotated_key)}" not in still_old.stdout
+        assert still_old.stdout.strip() == first_key
+        assert rotated_key not in still_old.stdout
         _assert_health(int(first_runtime["port"]), first_key, expected=200)
         _assert_health(int(first_runtime["port"]), rotated_key, expected=401)
 
