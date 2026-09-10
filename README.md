@@ -46,8 +46,9 @@ If you do not want to install the project as a global command, you can
 instead run it from the project directory in the following form.
 
 ```bash
-prx doctor
-prx proxy
+uv run prx doctor
+uv run prx setup
+uv run prx proxy
 ```
 
 If you want to always invoke it as `prx` from the shell regardless of where
@@ -73,6 +74,10 @@ flow output is shown from redacted LiteLLM logs. OAuth credentials are stored in
 the platform-specific `prx/github-copilot` state directory with user-only
 directory permissions.
 
+`prx auth` and `prx codex` use ephemeral proxy credentials and do not require
+setup. `prx auth` performs OAuth and may send a model request; `prx setup` is a
+local-only command that prepares credentials for a standalone proxy.
+
 Start Codex:
 
 ```bash
@@ -83,14 +88,23 @@ prx codex --copilot-model gpt-5.6-luna -- \
 Start only the proxy and keep it running:
 
 ```bash
+prx setup
 prx proxy
 ```
 
-The proxy reads model aliases from `models.json`, uses loopback port `4000` by
-default, and prints a copy-pasteable `export PRX_PROXY_KEY=...` command. Paste
-that command into the shell where Codex runs. It routes the requested `model`
-to the corresponding Copilot model. Add aliases to that file before starting
-the proxy. Use `prx proxy --port PORT` if you need a different fixed port.
+`prx setup` creates `proxy-key` in the platform-specific `prx` state directory
+and prints its path. Set `PRX_STATE_DIR` to use a different state directory;
+use the same setting for setup, proxy startup, and setenv.
+The directory is created with mode `0700` and the key file with
+mode `0600`; running setup again preserves the existing key and does not print
+it. An empty or invalid key file causes setup to fail. Starting `prx proxy`
+without a saved key exits with instructions to run `prx setup`.
+
+The proxy reads model aliases from `models.json` and uses loopback port `4000`
+by default. It uses the configured standalone key, which remains stable across
+proxy restarts. It routes the requested `model` to the corresponding Copilot
+model. Add aliases to that file before starting the proxy. Use
+`prx proxy --port PORT` if you need a different fixed port.
 
 Codex's Auto mode sends the internal model ID `codex-auto-review`. The proxy
 handles that ID automatically and routes it to the Copilot model `gpt-5.6-sol`;
@@ -110,10 +124,10 @@ wire_api = "responses"
 stream_idle_timeout_ms = 300000
 ```
 
-Paste the printed `export PRX_PROXY_KEY=...` command into the shell where you
-run `codex`. The API key is regenerated on each start, but the port remains
-`4000`, so `config.toml` does not need to be edited after every restart. The
-proxy is loopback-only.
+The proxy is loopback-only. After the proxy is running, load its active key in
+the shell where you run `codex` with `eval "$(prx proxy setenv)"` for bash/zsh
+(or use one of the startup snippets below). The key is read from the running
+proxy, so the `base_url` must match the fixed port selected for the proxy.
 
 To load the API key automatically whenever a new shell starts, add the
 corresponding snippet to your shell startup file.
@@ -142,10 +156,23 @@ if type -q prx
 end
 ```
 
-This reads the credentials of an already-running proxy and exports
-`PRX_PROXY_KEY` into the current shell. It does not start the proxy. The
-`base_url` must match the fixed port selected for the proxy. Bash and zsh use
-`export`; fish uses `set -gx`.
+This reads the credentials of an already-running proxy and exports its active
+`PRX_PROXY_KEY` into the current shell. It reads runtime information rather
+than the saved `proxy-key` file and does not start the proxy.
+Bash and zsh use `export`; fish uses `set -gx`.
+
+To rotate the persistent standalone key:
+
+```bash
+prx setup --rotate-key
+```
+
+Rotation atomically replaces the key on disk. If a proxy is running, restart
+it before using the new key, then reload the shell environment with
+`eval "$(prx proxy setenv)"` for bash/zsh (or the fish snippet above). Update any
+keys saved in client configurations as well. Until the proxy is restarted,
+`prx proxy setenv` continues to return the old key from the running proxy.
+An empty or invalid key file also causes rotation to fail.
 
 If you do not install `prx` globally, replace `prx` in the snippets above
 with the absolute path to the project virtualenv executable, for example

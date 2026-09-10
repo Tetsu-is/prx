@@ -18,6 +18,7 @@ from prx.config import (
     validate_forwarded_args,
 )
 from prx.diagnostics import collect_checks, command_version
+from prx.keys import load_proxy_key, setup_proxy_key
 from prx.models import load_models, models_file
 from prx.runtime import (
     create_runtime_settings,
@@ -32,6 +33,30 @@ app = typer.Typer(
     help="Run Codex CLI through a local LiteLLM GitHub Copilot proxy.",
     no_args_is_help=True,
 )
+
+
+@app.command()
+def setup(
+    rotate_key: Annotated[
+        bool,
+        typer.Option("--rotate-key", help="Replace the saved standalone proxy API key."),
+    ] = False,
+) -> None:
+    """Create a persistent API key for the standalone proxy."""
+    try:
+        path = setup_proxy_key(rotate=rotate_key)
+    except (OSError, ValueError) as exc:
+        typer.echo(f"Unable to set up proxy key: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    if rotate_key:
+        typer.echo(f"Proxy API key rotated: {path}")
+        typer.echo(
+            "Restart the proxy and update the API key in your clients. "
+            "A running proxy keeps its current key until restarted."
+        )
+    else:
+        typer.echo(f"Proxy API key is ready: {path}")
+        typer.echo("Existing keys are preserved. Start the standalone proxy with 'prx proxy'.")
 
 
 @app.command()
@@ -107,13 +132,20 @@ def proxy(
         typer.echo(f"Unknown proxy action: {action}", err=True)
         raise typer.Exit(2)
     try:
+        proxy_key = load_proxy_key()
+    except (OSError, ValueError) as exc:
+        typer.echo(f"Unable to load proxy key: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    try:
         configured = load_models()
     except ValueError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(2) from exc
     default_model = next(iter(configured))
     try:
-        settings = create_runtime_settings(default_model, configured, port=port)
+        settings = create_runtime_settings(
+            default_model, configured, port=port, proxy_key=proxy_key
+        )
     except OSError as exc:
         typer.echo(f"Unable to reserve proxy port {port}: {exc}", err=True)
         raise typer.Exit(1) from exc

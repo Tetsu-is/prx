@@ -72,6 +72,8 @@ def create_runtime_settings(
     model: str,
     models: dict[str, str] | None = None,
     port: int | None = None,
+    *,
+    proxy_key: str | None = None,
 ) -> RuntimeSettings:
     cache_root = cache_directory()
     runtime_dir = Path(tempfile.mkdtemp(prefix="run-", dir=cache_root))
@@ -84,7 +86,7 @@ def create_runtime_settings(
     return RuntimeSettings(
         model=model,
         port=selected_port,
-        proxy_key=make_proxy_key(),
+        proxy_key=make_proxy_key() if proxy_key is None else proxy_key,
         token_directory=copilot_token_directory(),
         config_path=runtime_dir / "litellm.json",
         log_path=runtime_dir / "proxy.log",
