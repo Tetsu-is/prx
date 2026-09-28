@@ -230,3 +230,51 @@ def test_auth_and_codex_keep_ephemeral_keys(
     else:
         assert child.call_count == 2
         assert child.call_args.args[1]["PRX_PROXY_KEY"] == started[-1].proxy_key
+
+
+def test_codex_reuses_a_running_proxy_instead_of_starting_a_new_one(
+    isolated_runtime, monkeypatch
+) -> None:
+    setup_proxy_key()
+    running_key = load_proxy_key()
+    _register_running_proxy(running_key)
+
+    monkeypatch.setattr("prx.cli.resolve_binary", lambda *_args: "/usr/bin/codex")
+    monkeypatch.setattr("prx.cli.load_models", lambda: {"test": "test"})
+    started_ephemeral = []
+
+    @contextmanager
+    def fake_proxy(settings, **_kwargs):
+        started_ephemeral.append(settings)
+        yield MagicMock()
+
+    monkeypatch.setattr("prx.cli.running_proxy", fake_proxy)
+    child = MagicMock(return_value=0)
+    monkeypatch.setattr("prx.cli.run_interactive_child", child)
+
+    result = runner.invoke(app, ["codex", "--copilot-model", "test"])
+
+    assert result.exit_code == 0, result.output
+    assert not started_ephemeral
+    assert "Reusing running prx proxy" in result.stderr
+    assert child.call_count == 1
+    assert child.call_args.args[1]["PRX_PROXY_KEY"] == running_key
+
+
+def test_codex_rejects_a_model_missing_from_the_running_proxy(
+    isolated_runtime, monkeypatch
+) -> None:
+    setup_proxy_key()
+    running_key = load_proxy_key()
+    _register_running_proxy(running_key)
+
+    monkeypatch.setattr("prx.cli.resolve_binary", lambda *_args: "/usr/bin/codex")
+    monkeypatch.setattr("prx.cli.load_models", lambda: {"other": "other"})
+    child = MagicMock(return_value=0)
+    monkeypatch.setattr("prx.cli.run_interactive_child", child)
+
+    result = runner.invoke(app, ["codex", "--copilot-model", "test"])
+
+    assert result.exit_code == 2
+    assert "not configured on the running prx proxy" in result.stderr
+    child.assert_not_called()
