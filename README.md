@@ -78,6 +78,11 @@ directory permissions.
 setup. `prx auth` performs OAuth and may send a model request; `prx setup` is a
 local-only command that prepares credentials for a standalone proxy.
 
+If a standalone proxy started with `prx proxy` is already running, `prx codex`
+reuses it instead of starting a second one, as long as `--copilot-model` is one
+of the aliases in `models.json` (see `prx models`). Otherwise it exits with an
+error naming the running proxy instead of silently starting a duplicate.
+
 Start Codex:
 
 ```bash

@@ -14,6 +14,7 @@ from prx import __version__
 from prx.config import (
     build_codex_command,
     build_proxy_environment,
+    proxy_key_environment_name,
     remove_owned_runtime_files,
     validate_forwarded_args,
 )
@@ -26,7 +27,13 @@ from prx.runtime import (
     run_interactive_child,
     running_proxy,
 )
-from prx.settings import DEFAULT_COPILOT_MODEL, cache_directory, state_directory
+from prx.settings import (
+    DEFAULT_COPILOT_MODEL,
+    RuntimeSettings,
+    cache_directory,
+    copilot_token_directory,
+    state_directory,
+)
 
 app = typer.Typer(
     name="prx",
@@ -243,6 +250,41 @@ def codex(
     except ValueError as exc:
         typer.echo(f"Invalid Codex arguments: {exc}", err=True)
         raise typer.Exit(2) from exc
+
+    running = _find_running_proxy()
+    if running is not None:
+        try:
+            configured = load_models()
+        except ValueError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(2) from exc
+        if copilot_model not in configured:
+            typer.echo(
+                f"Model {copilot_model!r} is not configured on the running prx proxy "
+                f"(pid {running.pid}, port {running.port}). Check 'prx models' or add it "
+                "to models.json and restart 'prx proxy'.",
+                err=True,
+            )
+            raise typer.Exit(2)
+        reused_settings = RuntimeSettings(
+            model=copilot_model,
+            port=running.port,
+            proxy_key=running.proxy_key,
+            token_directory=copilot_token_directory(),
+            config_path=Path(os.devnull),
+            log_path=Path(os.devnull),
+        )
+        command = build_codex_command(codex_binary, reused_settings, forwarded_args)
+        typer.echo(
+            f"Reusing running prx proxy at 127.0.0.1:{running.port} "
+            f"({copilot_model} -> github_copilot/{configured[copilot_model]})",
+            err=True,
+        )
+        env = os.environ.copy()
+        env[proxy_key_environment_name()] = reused_settings.proxy_key
+        exit_code = run_interactive_child(command, env)
+        raise typer.Exit(exit_code)
+
     settings = create_runtime_settings(copilot_model)
     try:
         command = build_codex_command(codex_binary, settings, forwarded_args)
@@ -271,7 +313,7 @@ def cleanup() -> None:
     typer.echo(f"Removed {len(removed)} stale runtime {noun}.")
 
 
-def _running_proxy_state() -> RunningProxyState:
+def _find_running_proxy() -> RunningProxyState | None:
     path = state_directory() / "proxy-runtime.json"
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -280,11 +322,18 @@ def _running_proxy_state() -> RunningProxyState:
         proxy_key = str(payload["proxy_key"])
         os.kill(pid, 0)
         if not proxy_key.startswith("sk-prx-"):
-            raise ValueError("invalid proxy key")
-    except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
-        typer.echo("No running prx proxy was found", err=True)
-        raise typer.Exit(1) from exc
+            return None
+    except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError):
+        return None
     return RunningProxyState(pid=pid, port=port, proxy_key=proxy_key)
+
+
+def _running_proxy_state() -> RunningProxyState:
+    state = _find_running_proxy()
+    if state is None:
+        typer.echo("No running prx proxy was found", err=True)
+        raise typer.Exit(1)
+    return state
 
 
 def _print_proxy_info() -> None:
