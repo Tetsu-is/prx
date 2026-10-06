@@ -285,7 +285,13 @@ def codex(
         exit_code = run_interactive_child(command, env)
         raise typer.Exit(exit_code)
 
-    settings = create_runtime_settings(copilot_model)
+    try:
+        configured = load_models()
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(2) from exc
+    configured.setdefault(copilot_model, copilot_model)
+    settings = create_runtime_settings(copilot_model, configured)
     try:
         command = build_codex_command(codex_binary, settings, forwarded_args)
         typer.echo(

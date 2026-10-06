@@ -261,6 +261,28 @@ def test_codex_reuses_a_running_proxy_instead_of_starting_a_new_one(
     assert child.call_args.args[1]["PRX_PROXY_KEY"] == running_key
 
 
+def test_codex_ephemeral_proxy_registers_all_configured_models(
+    isolated_runtime, monkeypatch
+) -> None:
+    configured = {"gpt-6-sol": "gpt-6-sol", "gpt-6.1-sol": "gpt-6.1-sol"}
+    monkeypatch.setattr("prx.cli.load_models", lambda: configured)
+    monkeypatch.setattr("prx.cli.resolve_binary", lambda *_args: "/usr/bin/codex")
+    started = []
+
+    @contextmanager
+    def fake_proxy(settings, **_kwargs):
+        started.append(settings)
+        yield MagicMock()
+
+    monkeypatch.setattr("prx.cli.running_proxy", fake_proxy)
+    monkeypatch.setattr("prx.cli.run_interactive_child", MagicMock(return_value=0))
+
+    result = runner.invoke(app, ["codex", "--copilot-model", "gpt-6-sol"])
+
+    assert result.exit_code == 0, result.output
+    assert started[0].models == configured
+
+
 def test_codex_rejects_a_model_missing_from_the_running_proxy(
     isolated_runtime, monkeypatch
 ) -> None:
