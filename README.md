@@ -111,11 +111,10 @@ proxy restarts. It routes the requested `model` to the corresponding Copilot
 model. Add aliases to that file before starting the proxy. Use
 `prx proxy --port PORT` if you need a different fixed port.
 
-The default configuration includes Copilot model IDs for Grok, Claude, and
-Kimi. Select them with the same `--copilot-model` option:
+The default configuration includes Copilot model IDs for Claude and Kimi.
+Select them with the same `--copilot-model` option:
 
 ```bash
-prx codex --copilot-model grok-4.7 -- --sandbox workspace-write
 prx codex --copilot-model claude-opus-5 -- --sandbox workspace-write
 prx codex --copilot-model kimi-k3 -- --sandbox workspace-write
 ```

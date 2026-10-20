@@ -54,11 +54,10 @@ def test_load_models_requires_non_empty_models(monkeypatch, tmp_path) -> None:
         load_models()
 
 
-def test_default_models_include_copilot_grok_claude_and_kimi(monkeypatch) -> None:
+def test_default_models_include_copilot_claude_and_kimi(monkeypatch) -> None:
     monkeypatch.setenv("PRX_MODELS_FILE", str(Path(__file__).parents[1] / "models.json"))
 
     models = load_models()
 
-    assert models["grok-4.7"] == CopilotModel("grok-4.7", "chat")
     assert models["claude-opus-5"] == CopilotModel("claude-opus-5", "chat")
     assert models["kimi-k3"] == CopilotModel("kimi-k3", "chat")
