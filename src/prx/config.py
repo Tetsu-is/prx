@@ -18,6 +18,15 @@ def configured_models(settings: RuntimeSettings) -> dict[str, CopilotModel]:
     return models
 
 
+def litellm_params(model: CopilotModel) -> dict[str, Any]:
+    params: dict[str, Any] = {"model": f"github_copilot/{model.name}"}
+    if model.api == "chat":
+        # Codex always sends reasoning effort, which LiteLLM rejects for chat models it
+        # does not know to support reasoning (e.g. Kimi) instead of omitting it.
+        params["drop_params"] = True
+    return params
+
+
 def build_litellm_config(settings: RuntimeSettings) -> dict[str, Any]:
     models = configured_models(settings)
     return {
@@ -25,7 +34,7 @@ def build_litellm_config(settings: RuntimeSettings) -> dict[str, Any]:
             {
                 "model_name": alias,
                 "model_info": {"mode": model.api},
-                "litellm_params": {"model": f"github_copilot/{model.name}"},
+                "litellm_params": litellm_params(model),
             }
             for alias, model in models.items()
         ],

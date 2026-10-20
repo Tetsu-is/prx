@@ -82,9 +82,11 @@ def test_litellm_config_sets_mode_from_model_api(tmp_path) -> None:
 
     assert deployments["gpt-test"]["model_info"]["mode"] == "responses"
     assert deployments["claude-opus-5"]["model_info"]["mode"] == "chat"
-    assert deployments["claude-opus-5"]["litellm_params"]["model"] == (
-        "github_copilot/claude-opus-5"
-    )
+    assert deployments["claude-opus-5"]["litellm_params"] == {
+        "model": "github_copilot/claude-opus-5",
+        "drop_params": True,
+    }
+    assert "drop_params" not in deployments["gpt-test"]["litellm_params"]
     assert deployments[AUTO_MODEL]["model_info"]["mode"] == "responses"
 
 

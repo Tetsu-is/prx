@@ -130,6 +130,8 @@ LiteLLM translate Codex's requests to Copilot's `/chat/completions`:
 ```
 
 A plain string entry is shorthand for `{"model": "<id>", "api": "responses"}`.
+For `chat` models, LiteLLM drops request parameters it does not know the model
+supports, such as Codex's reasoning effort for Kimi.
 The translation may not carry every Responses API feature Codex uses, such as
 reasoning items, so behavior can differ from OpenAI models. A model passed with
 `--copilot-model` that is not listed in `models.json` uses the Responses API.
