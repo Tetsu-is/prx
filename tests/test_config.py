@@ -14,6 +14,7 @@ from prx.config import (
     remove_owned_runtime_files,
     write_litellm_config,
 )
+from prx.models import CopilotModel
 from prx.settings import RuntimeSettings
 
 
@@ -53,8 +54,8 @@ def test_litellm_config_routes_codex_auto_review_to_supported_model(tmp_path) ->
 def test_litellm_config_routes_multiple_aliases(tmp_path) -> None:
     runtime = settings(tmp_path)
     runtime = RuntimeSettings(**{**runtime.__dict__, "models": {
-        "fast": "gpt-test",
-        "reasoning": "gpt-reasoning",
+        "fast": CopilotModel("gpt-test"),
+        "reasoning": CopilotModel("gpt-reasoning"),
     }})
 
     deployments = build_litellm_config(runtime)["model_list"]
@@ -65,6 +66,26 @@ def test_litellm_config_routes_multiple_aliases(tmp_path) -> None:
         AUTO_MODEL,
     ]
     assert deployments[1]["litellm_params"]["model"] == "github_copilot/gpt-reasoning"
+
+
+def test_litellm_config_sets_mode_from_model_api(tmp_path) -> None:
+    runtime = settings(tmp_path)
+    runtime = RuntimeSettings(**{**runtime.__dict__, "models": {
+        "gpt-test": CopilotModel("gpt-test", "responses"),
+        "claude-opus-5": CopilotModel("claude-opus-5", "chat"),
+    }})
+
+    deployments = {
+        deployment["model_name"]: deployment
+        for deployment in build_litellm_config(runtime)["model_list"]
+    }
+
+    assert deployments["gpt-test"]["model_info"]["mode"] == "responses"
+    assert deployments["claude-opus-5"]["model_info"]["mode"] == "chat"
+    assert deployments["claude-opus-5"]["litellm_params"]["model"] == (
+        "github_copilot/claude-opus-5"
+    )
+    assert deployments[AUTO_MODEL]["model_info"]["mode"] == "responses"
 
 
 def test_written_config_is_private_json_yaml(tmp_path) -> None:

@@ -9,6 +9,8 @@ from pathlib import Path
 
 from platformdirs import user_cache_path, user_state_path
 
+from prx.models import CopilotModel
+
 DEFAULT_COPILOT_MODEL = "gpt-5.6-luna"
 PROVIDER_ID = "prx"
 
@@ -57,7 +59,7 @@ class RuntimeSettings:
     token_directory: Path
     config_path: Path
     log_path: Path
-    models: dict[str, str] = field(default_factory=dict)
+    models: dict[str, CopilotModel] = field(default_factory=dict)
     runtime_info_path: Path | None = None
 
     @property

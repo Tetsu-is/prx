@@ -12,6 +12,7 @@ from prx import __version__
 from prx.cli import app
 from prx.diagnostics import Check
 from prx.keys import load_proxy_key, setup_proxy_key
+from prx.models import CopilotModel
 from prx.runtime import ProxyProcess, create_runtime_settings
 
 runner = CliRunner()
@@ -37,9 +38,18 @@ def test_doctor_fails_when_required_component_missing(monkeypatch) -> None:
     assert "[WARN] Codex CLI: missing" in result.stdout
 
 
-def test_models_is_honest_about_discovery() -> None:
+def test_models_is_honest_about_discovery(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "prx.cli.load_models",
+        lambda: {
+            "gpt-test": CopilotModel("gpt-test"),
+            "claude-opus-5": CopilotModel("claude-opus-5", "chat"),
+        },
+    )
     result = runner.invoke(app, ["models"])
     assert result.exit_code == 0
+    assert "gpt-test -> github_copilot/gpt-test (responses API)" in result.stdout
+    assert "claude-opus-5 -> github_copilot/claude-opus-5 (chat API)" in result.stdout
     assert "does not expose authoritative account model discovery" in result.stdout
 
 
@@ -118,7 +128,7 @@ def test_proxy_reuses_saved_key_on_each_start(isolated_runtime, monkeypatch) -> 
         yield MagicMock()
 
     monkeypatch.setattr("prx.cli.running_proxy", fake_proxy)
-    monkeypatch.setattr("prx.cli.load_models", lambda: {"test": "test"})
+    monkeypatch.setattr("prx.cli.load_models", lambda: {"test": CopilotModel("test")})
     for _ in range(2):
         result = runner.invoke(app, ["proxy"])
         assert result.exit_code == 0, result.output
@@ -240,7 +250,7 @@ def test_codex_reuses_a_running_proxy_instead_of_starting_a_new_one(
     _register_running_proxy(running_key)
 
     monkeypatch.setattr("prx.cli.resolve_binary", lambda *_args: "/usr/bin/codex")
-    monkeypatch.setattr("prx.cli.load_models", lambda: {"test": "test"})
+    monkeypatch.setattr("prx.cli.load_models", lambda: {"test": CopilotModel("test")})
     started_ephemeral = []
 
     @contextmanager
@@ -264,7 +274,10 @@ def test_codex_reuses_a_running_proxy_instead_of_starting_a_new_one(
 def test_codex_ephemeral_proxy_registers_all_configured_models(
     isolated_runtime, monkeypatch
 ) -> None:
-    configured = {"gpt-6-sol": "gpt-6-sol", "gpt-6.1-sol": "gpt-6.1-sol"}
+    configured = {
+        "gpt-6-sol": CopilotModel("gpt-6-sol"),
+        "gpt-6.1-sol": CopilotModel("gpt-6.1-sol"),
+    }
     monkeypatch.setattr("prx.cli.load_models", lambda: configured)
     monkeypatch.setattr("prx.cli.resolve_binary", lambda *_args: "/usr/bin/codex")
     started = []
@@ -291,7 +304,7 @@ def test_codex_rejects_a_model_missing_from_the_running_proxy(
     _register_running_proxy(running_key)
 
     monkeypatch.setattr("prx.cli.resolve_binary", lambda *_args: "/usr/bin/codex")
-    monkeypatch.setattr("prx.cli.load_models", lambda: {"other": "other"})
+    monkeypatch.setattr("prx.cli.load_models", lambda: {"other": CopilotModel("other")})
     child = MagicMock(return_value=0)
     monkeypatch.setattr("prx.cli.run_interactive_child", child)
 

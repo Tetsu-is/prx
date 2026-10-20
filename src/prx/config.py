@@ -5,15 +5,16 @@ import os
 from pathlib import Path
 from typing import Any
 
+from prx.models import CopilotModel
 from prx.settings import PROVIDER_ID, RuntimeSettings
 
 AUTO_MODEL = "codex-auto-review"
 AUTO_PROVIDER_MODEL = "gpt-5.6-sol"
 
 
-def configured_models(settings: RuntimeSettings) -> dict[str, str]:
-    models = dict(settings.models or {settings.model: settings.model})
-    models.setdefault(AUTO_MODEL, AUTO_PROVIDER_MODEL)
+def configured_models(settings: RuntimeSettings) -> dict[str, CopilotModel]:
+    models = dict(settings.models or {settings.model: CopilotModel(settings.model)})
+    models.setdefault(AUTO_MODEL, CopilotModel(AUTO_PROVIDER_MODEL))
     return models
 
 
@@ -23,10 +24,10 @@ def build_litellm_config(settings: RuntimeSettings) -> dict[str, Any]:
         "model_list": [
             {
                 "model_name": alias,
-                "model_info": {"mode": "responses"},
-                "litellm_params": {"model": f"github_copilot/{provider_model}"},
+                "model_info": {"mode": model.api},
+                "litellm_params": {"model": f"github_copilot/{model.name}"},
             }
-            for alias, provider_model in models.items()
+            for alias, model in models.items()
         ],
         "general_settings": {
             "master_key": f"os.environ/{proxy_key_environment_name()}",

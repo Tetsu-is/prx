@@ -6,6 +6,9 @@
     "gpt-6-astra": "gpt-6-astra",
     "gpt-6-sol": "gpt-6-sol",
     "gpt-6.1-sol": "gpt-6.1-sol",
-    "gpt-6-luna": "gpt-6-luna"
+    "gpt-6-luna": "gpt-6-luna",
+    "grok-4.7": {"model": "grok-4.7", "api": "chat"},
+    "claude-opus-5": {"model": "claude-opus-5", "api": "chat"},
+    "kimi-k3": {"model": "kimi-k3", "api": "chat"}
   }
 }

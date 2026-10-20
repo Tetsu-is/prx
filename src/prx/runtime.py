@@ -18,6 +18,7 @@ from types import FrameType
 import httpx
 
 from prx.config import build_proxy_environment, write_litellm_config
+from prx.models import CopilotModel
 from prx.settings import (
     RuntimeSettings,
     cache_directory,
@@ -70,7 +71,7 @@ def litellm_command() -> list[str]:
 
 def create_runtime_settings(
     model: str,
-    models: dict[str, str] | None = None,
+    models: dict[str, CopilotModel] | None = None,
     port: int | None = None,
     *,
     proxy_key: str | None = None,

@@ -111,6 +111,34 @@ proxy restarts. It routes the requested `model` to the corresponding Copilot
 model. Add aliases to that file before starting the proxy. Use
 `prx proxy --port PORT` if you need a different fixed port.
 
+The default configuration includes Copilot model IDs for Grok, Claude, and
+Kimi. Select them with the same `--copilot-model` option:
+
+```bash
+prx codex --copilot-model grok-4.7 -- --sandbox workspace-write
+prx codex --copilot-model claude-opus-5 -- --sandbox workspace-write
+prx codex --copilot-model kimi-k3 -- --sandbox workspace-write
+```
+
+Codex always speaks the Responses API, but Copilot serves only some models
+(OpenAI's) on `/responses`. Models that Copilot rejects with
+`unsupported_api_for_model` need `"api": "chat"` in `models.json`, which makes
+LiteLLM translate Codex's requests to Copilot's `/chat/completions`:
+
+```json
+"claude-opus-5": {"model": "claude-opus-5", "api": "chat"}
+```
+
+A plain string entry is shorthand for `{"model": "<id>", "api": "responses"}`.
+The translation may not carry every Responses API feature Codex uses, such as
+reasoning items, so behavior can differ from OpenAI models. A model passed with
+`--copilot-model` that is not listed in `models.json` uses the Responses API.
+
+Model availability depends on the Copilot account and can change independently
+of `prx`. Confirm the exact IDs shown by the official Copilot CLI before use;
+`prx models` only lists locally configured aliases and does not query the
+account's authoritative model catalog.
+
 Codex's Auto mode sends the internal model ID `codex-auto-review`. The proxy
 handles that ID automatically and routes it to the Copilot model `gpt-5.6-sol`;
 it does not need to be added to `models.json`.

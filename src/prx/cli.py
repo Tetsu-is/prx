@@ -20,7 +20,7 @@ from prx.config import (
 )
 from prx.diagnostics import collect_checks, command_version
 from prx.keys import load_proxy_key, setup_proxy_key
-from prx.models import load_models, models_file
+from prx.models import CopilotModel, load_models, models_file
 from prx.runtime import (
     create_runtime_settings,
     resolve_binary,
@@ -109,8 +109,8 @@ def models() -> None:
     except ValueError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(2) from exc
-    for alias, provider_model in configured.items():
-        typer.echo(f"{alias} -> github_copilot/{provider_model}")
+    for alias, model in configured.items():
+        typer.echo(f"{alias} -> github_copilot/{model.name} ({model.api} API)")
     typer.echo(
         f"\nConfigured in {models_file()}. LiteLLM's Copilot provider does not expose "
         "authoritative "
@@ -277,7 +277,7 @@ def codex(
         command = build_codex_command(codex_binary, reused_settings, forwarded_args)
         typer.echo(
             f"Reusing running prx proxy at 127.0.0.1:{running.port} "
-            f"({copilot_model} -> github_copilot/{configured[copilot_model]})",
+            f"({copilot_model} -> github_copilot/{configured[copilot_model].name})",
             err=True,
         )
         env = os.environ.copy()
@@ -290,7 +290,7 @@ def codex(
     except ValueError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(2) from exc
-    configured.setdefault(copilot_model, copilot_model)
+    configured.setdefault(copilot_model, CopilotModel(copilot_model))
     settings = create_runtime_settings(copilot_model, configured)
     try:
         command = build_codex_command(codex_binary, settings, forwarded_args)
