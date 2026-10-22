@@ -12,7 +12,7 @@ license = { text = "MIT" }
 authors = [{ name = "prx contributors" }]
 dependencies = [
   "httpx>=0.28.1,<0.29",
-  "litellm[proxy]==1.94.1",
+  "litellm[proxy]==1.106.2",
   "platformdirs>=4.3.8,<5",
   "typer>=0.16.0,<1",
 ]
